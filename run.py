@@ -29,15 +29,15 @@ def main() -> None:
     t = time.perf_counter()
     print(f"[1/3] Simulating one trading day (seed={args.seed})...")
     events, labels, links = generate(args.seed)
-    events.to_csv(args.out / "events.csv", index=False)
-    labels.to_csv(args.out / "labels.csv", index=False)
-    links.to_csv(args.out / "account_links.csv", index=False)
+    events.to_csv(args.out / "events.csv", index=False, lineterminator="\n")
+    labels.to_csv(args.out / "labels.csv", index=False, lineterminator="\n")
+    links.to_csv(args.out / "account_links.csv", index=False, lineterminator="\n")
     print(f"      {len(events):,} order events, {events['account_id'].nunique()} accounts, "
           f"{len(labels)} injected incidents {labels['pattern'].value_counts().to_dict()}")
 
     print("[2/3] Running detectors...")
     alerts = run_all_detectors(events, links)
-    alerts.to_csv(args.out / "alerts.csv", index=False)
+    alerts.to_csv(args.out / "alerts.csv", index=False, lineterminator="\n")
     print(f"      {len(alerts)} alerts {alerts['pattern'].value_counts().to_dict()}")
 
     print("[3/3] Evaluating against ground truth...")

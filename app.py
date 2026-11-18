@@ -32,9 +32,9 @@ def load() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     if not (DATA / "events.csv").exists():
         DATA.mkdir(exist_ok=True)
         e, l, k = generate()
-        e.to_csv(DATA / "events.csv", index=False)
-        l.to_csv(DATA / "labels.csv", index=False)
-        k.to_csv(DATA / "account_links.csv", index=False)
+        e.to_csv(DATA / "events.csv", index=False, lineterminator="\n")
+        l.to_csv(DATA / "labels.csv", index=False, lineterminator="\n")
+        k.to_csv(DATA / "account_links.csv", index=False, lineterminator="\n")
     events = pd.read_csv(DATA / "events.csv")
     labels = pd.read_csv(DATA / "labels.csv")
     links = pd.read_csv(DATA / "account_links.csv")

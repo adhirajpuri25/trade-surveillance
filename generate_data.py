@@ -614,9 +614,9 @@ def main() -> None:
 
     events, labels, links = generate(args.seed)
     args.out.mkdir(parents=True, exist_ok=True)
-    events.to_csv(args.out / "events.csv", index=False)
-    labels.to_csv(args.out / "labels.csv", index=False)
-    links.to_csv(args.out / "account_links.csv", index=False)
+    events.to_csv(args.out / "events.csv", index=False, lineterminator="\n")
+    labels.to_csv(args.out / "labels.csv", index=False, lineterminator="\n")
+    links.to_csv(args.out / "account_links.csv", index=False, lineterminator="\n")
     counts = events["event_type"].value_counts().to_dict()
     print(f"Wrote {len(events):,} events {counts} to {args.out}/events.csv")
     print(f"Wrote {len(labels)} labeled incidents {labels['pattern'].value_counts().to_dict()}")

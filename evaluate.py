@@ -138,8 +138,8 @@ def evaluate(events: pd.DataFrame, labels: pd.DataFrame, links: pd.DataFrame | N
     metrics = score(alerts, labels)
     sweep = spoofing_sweep(events, labels)
     if out_dir is not None:
-        metrics.to_csv(out_dir / "metrics.csv", index=False)
-        sweep.to_csv(out_dir / "spoofing_sweep.csv", index=False)
+        metrics.to_csv(out_dir / "metrics.csv", index=False, lineterminator="\n")
+        sweep.to_csv(out_dir / "spoofing_sweep.csv", index=False, lineterminator="\n")
     if not quiet:
         cols = ["pattern", "incidents", "alerts", "true_pos_alerts", "false_pos_alerts",
                 "hit_other_pattern", "missed", "precision", "recall", "f1"]
