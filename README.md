@@ -44,7 +44,7 @@ pip install -r requirements.txt
 
 python run.py                      # generate -> detect -> evaluate (~5 s)
 streamlit run app.py               # analyst dashboard at http://localhost:8501
-pytest                             # 18 tests
+pytest                             # 21 tests
 ```
 
 `run.py` writes everything to `data/`: events, ground-truth labels, alerts, metrics
@@ -88,9 +88,62 @@ detectors/           common.py (book replay), wash_trades.py, spoofing.py, layer
 evaluate.py          precision/recall/F1, threshold sweep, multi-seed robustness
 run.py               end-to-end pipeline
 app.py               Streamlit dashboard
+real_data/           Coinbase BTC-USD capture (raw/), order-level analysis, results (output/)
 tests/               pytest scenarios
 DESIGN.md            plain-English design notes: law, logic, thresholds, limitations
 ```
+
+## Real market data: Coinbase BTC-USD
+
+`real_data/` applies the spoofing idea to **real** order-book data. The public feed
+has no account IDs, so this works at the order level. It flags unusually large
+orders near the touch that are canceled within seconds without trading.
+
+```bash
+python -m real_data.capture --minutes 20   # record from Coinbase's public WebSocket (optional)
+python -m real_data.analyze                # analyze the newest capture in real_data/raw/
+```
+
+The 20-minute capture analyzed here is committed (`real_data/raw/`, 3.8 MB gzipped), so
+the analysis reproduces without reconnecting. Coinbase's order-by-order channels
+(`full` / `level3`) now require an authenticated API key. The capture therefore uses
+the public `level2_batch` channel (total size per price level, every 50 ms) plus
+`matches` (every trade). A large add is inferred as a jump in the size at one price
+level.
+
+**What it found** (2026-11-18, 02:03-02:23 UTC; 418,864 book updates, 21,523 trades):
+
+| | Count |
+|---|---:|
+| Size added within 2 bps of the touch | 60,899 (median 0.12 BTC) |
+| Large adds (≥ 10x median **and** ≥ $100k) | 58 |
+| ...pulled within 5 s with nothing traded at that price (**flagged**) | **47 (81%)** |
+| ...filled / partly filled / still resting | 1 / 1 / 1 |
+| *Ordinary* adds that pass the same "pulled within 5 s, unfilled" test | **80.5%** |
+
+Examples of flagged orders (full list in `real_data/output/flagged_orders.csv`):
+
+| Time (UTC) | Side | Price | Size | Behind best ask | Lifetime | Traded there |
+|---|---|---:|---:|---:|---:|---:|
+| 02:08:57.894 | sell | 64,312.99 | 2.18 BTC ($140k) | $10.65 | 3.6 s | 0 |
+| 02:04:31.531 | sell | 64,232.99 | 2.13 BTC ($137k) | $11.31 | 1.6 s | 0 |
+| 02:04:21.949 | sell | 64,251.99 | 2.12 BTC ($136k) | $11.30 | 4.1 s | 0 |
+| 02:07:01.445 | sell | 64,232.65 | 2.03 BTC ($130k) | $10.67 | 1.1 s | 0 |
+
+![A 2.18 BTC offer sits about $10 behind the ask for 3.6 seconds and disappears at the instant buyers sweep the price up to it, with nothing traded at that price.](docs/real_data_example.png)
+
+**The key limitation: there are no account IDs.** Every flagged order is on the sell
+side, sized about 1.6-2.3 BTC, at the ask or $8-12 behind it, and lives about 1 s.
+That looks like one or a few liquidity algorithms. But nothing in public data says
+**who** placed them. We can't check whether the same trader was filling on the other
+side, which is the test that separated spoofing from innocent activity in the
+synthetic data. Fast cancellation alone separates nothing here: 81% of large adds
+vanish, but so do 80.5% of ordinary ones. The chart's order was pulled exactly as
+buyers swept up to its price. A spoofer would do that, and so would a market maker
+protecting itself from an aggressive sweep. Without accounts, wash trades are also
+undetectable: you can't see that buyer and seller are the same person. That is why
+real surveillance is done by exchanges and regulators, who hold the full
+account-level data. Details in [DESIGN.md §10](DESIGN.md#10-real-market-data-coinbase-btc-usd).
 
 ## Limitations
 

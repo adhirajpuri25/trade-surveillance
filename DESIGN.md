@@ -16,6 +16,7 @@ exchange surveillance system does differently. No finance background is assumed.
 7. [How the detectors are scored](#7-how-the-detectors-are-scored)
 8. [What a real surveillance system does differently](#8-what-a-real-surveillance-system-does-differently)
 9. [Interview cheat sheet](#9-interview-cheat-sheet)
+10. [Real market data: Coinbase BTC-USD](#10-real-market-data-coinbase-btc-usd)
 
 ---
 
@@ -530,3 +531,116 @@ failed-spoof rule that doesn't need a fill, and cross-product linkage.
 
 **"Is an alert an accusation?"** No. An alert means "a human should look at
 this". Intent is the legal core of spoofing, and data alone rarely proves it.
+
+---
+
+## 10. Real market data: Coinbase BTC-USD
+
+### Why crypto, and what data is actually public
+
+No futures exchange publishes order-level data with account IDs. Coinbase publishes
+a free, live WebSocket feed of its BTC-USD order book, which makes it the most
+accessible real limit order book there is. Three levels of detail exist:
+
+| Channel | What it contains | Access |
+|---|---|---|
+| `full` / `level3` | Every order's add, change and cancel, **with an order ID** (but no account ID) | Requires an authenticated API key |
+| `level2_batch` | Total size at each price level, updated every 50 ms | **Public** |
+| `matches` | Every trade: price, size, side, maker and taker **order IDs** | **Public** |
+
+The brief asked for the order-level channel. Coinbase now refuses unauthenticated
+subscriptions to it ("level2, level3, and full channels now require
+authentication"), so the capture falls back to the best public data:
+`level2_batch` plus `matches`.
+
+### How the capture works (`real_data/capture.py`)
+
+It subscribes to both channels for BTC-USD and writes every message unchanged,
+plus a local receive timestamp, to a gzipped JSON-lines file in `real_data/raw/`.
+If the connection drops, it reconnects and writes a marker. The new subscription
+starts with a fresh book snapshot, and the analysis resets its book at that point.
+The committed sample is 20 minutes (41,139 messages, 3.8 MB), so anyone can
+re-run the analysis without connecting to Coinbase.
+
+### How the order-level screen decides (`real_data/analyze.py`)
+
+1. **Rebuild the book.** Start from the snapshot and apply every price-level
+   update, tracking the best bid and ask (the same idea as `add_bbo` in the
+   synthetic pipeline).
+2. **Infer "orders" from size jumps.** If the size at one price grows by 2.18 BTC
+   in one update, someone added roughly 2.18 BTC there. Only adds within
+   **2 bps** (about $13) of the best price on their side count as near the touch.
+   The spread itself is almost always $0.01.
+3. **Large** = the jump is at least **10x the median near-touch add** (0.12 BTC,
+   so 1.24 BTC) **and** at least **$100,000**. With no accounts, the baseline has
+   to be market-wide, so the dollar floor stands in for "big enough to matter".
+4. **Follow it** for up to 60 s. It is **gone** once the level falls back by 90%
+   of the jump. It is **filled** if trades at that exact price (from `matches`,
+   which report the resting order's side) account for the drop.
+5. **Flag** if it was gone within **5 s** with **at most 10%** of it traded. Same
+   numbers as the synthetic spoofing detector.
+6. **Context** (descriptive only): how far the mid price moved while it was
+   visible, and how much aggressive buying and selling happened meanwhile.
+
+All of these thresholds are in `config.py` (`RealDataConfig`).
+
+### What it found
+
+Data: 2026-11-18, 02:03:39-02:23:39 UTC. 418,864 price-level updates and 21,523
+trades (106.7 BTC).
+
+* 60,899 near-touch adds. **58 were large.** Of those, **47 (81%) were pulled
+  within 5 s with nothing traded at that price**. One filled, one was partly
+  filled then canceled, and one was still resting.
+* **All 47 are on the sell side**, sized 1.55-2.25 BTC (about $100k-$145k). They
+  cluster either within $0.50 of the best ask (13 of them) or $8-12 behind it (25), with a median lifetime
+  of 0.9 s. Repeated sizes and distances like this look like one or a few
+  automated liquidity providers, not dozens of different traders.
+* While they were visible, the mid price moved by -0.37 bps on average (a few
+  cents). That is a tiny move, and there is no way to tell whether these orders
+  caused it.
+* **The baseline is the most important number.** In a random sample of
+  *ordinary* near-touch adds, **80.5%** pass the same "pulled within 5 s without
+  trading" test. On a modern electronic market, fast cancellation is normal for
+  orders of every size.
+
+The example chart (`docs/real_data_example.png`) shows the clearest case. A
+2.18 BTC offer sits $10.65 behind the ask for 3.6 s and disappears **at the instant
+buyers sweep the price up to it**. A spoofer would pull it then, because they
+never wanted it filled. A market maker would also pull it then, to avoid being
+run over by an aggressive buyer ("quote fading"). The public data cannot tell
+these apart.
+
+### The key limitation: no account IDs
+
+In the synthetic data, the most important spoofing test was test 4: **the same
+account** filled on the other side. That test is impossible here. Without account
+IDs you cannot:
+
+* link a canceled order to a fill on the opposite side by the **same trader**,
+  which is the motive;
+* see whether the "47 orders" are one trader or ten, or whether it's a firm that
+  does this every day (the frequency over time a real analyst relies on);
+* detect **wash trades** at all, because you can't see that buyer and seller are
+  the same beneficial owner;
+* compare an order to **that trader's normal size**. Only a market-wide baseline
+  is possible, which is why ordinary market makers look identical to spoofers.
+
+There are smaller data limitations too. The 50 ms batching hides orders added and
+canceled within one batch. Size at a price is an **aggregate**, so a 2 BTC jump
+might be several orders, and a later drop might be a *different* order leaving.
+The best bid/ask at entry is the state at the start of the batch, so it can be
+slightly stale.
+
+This is why market surveillance is done by **exchanges and regulators**. ICE's
+market regulation team sees every order with the account, trader ID and beneficial
+owner behind it. With that data, the 47 flagged orders become 47 questions with
+answers: *whose orders are these, did that same account trade on the other side,
+and how often does it do this?* Without it, they remain "large orders that were
+canceled quickly", which on a modern market describes most orders.
+
+**Interview version:** "I ran the same spoofing logic on 20 minutes of real
+Coinbase data. It flagged 47 large orders pulled within seconds without trading.
+But 80% of ordinary orders do the same thing, and without account IDs I can't
+connect any of them to a trade by the same person. The exercise shows why the
+account-level view an exchange regulator has is what makes surveillance work."

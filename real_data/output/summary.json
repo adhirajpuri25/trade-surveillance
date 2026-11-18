@@ -1,0 +1,28 @@
+{
+  "window_utc": "2026-11-18T02:03:39 to 2026-11-18T02:23:39",
+  "minutes": 20.0,
+  "level_updates": 418864,
+  "trades": 21523,
+  "traded_btc": 106.72,
+  "adds_near_touch": 60899,
+  "median_add_btc": 0.12426021,
+  "large_adds": 58,
+  "outcomes": {
+    "canceled unfilled": 55,
+    "still resting": 1,
+    "filled": 1,
+    "partly filled, rest canceled": 1
+  },
+  "flagged": 47,
+  "thresholds": {
+    "max_distance_bps": 2.0,
+    "size_multiple": 10.0,
+    "min_notional_usd": 100000.0,
+    "removal_fraction": 0.9,
+    "max_lifetime_s": 5.0,
+    "max_filled_fraction": 0.1,
+    "follow_s": 60.0
+  },
+  "share_of_large_adds_flagged": 0.81,
+  "share_of_ordinary_adds_meeting_same_test": 0.805
+}

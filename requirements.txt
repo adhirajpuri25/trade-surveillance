@@ -4,3 +4,4 @@ matplotlib>=3.8
 plotly>=5.20
 streamlit>=1.40
 pytest>=8.0
+websockets>=12.0       # real_data/capture.py only

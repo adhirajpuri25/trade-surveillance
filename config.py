@@ -127,6 +127,40 @@ class LayeringConfig:
     alert_merge_gap_s: float = 10.0
 
 
+@dataclass(frozen=True)
+class RealDataConfig:
+    """Order-level spoofing screen for real Coinbase data (real_data/).
+
+    Public data has no account IDs and the public book feed has no order IDs,
+    so "orders" are inferred from size jumps at a price level."""
+
+    # Only look at size added within this distance of the best price on its
+    # side, in basis points of the mid price (1 bp = 0.01%; ~$6.5 at $65k).
+    # Wider -> includes deep orders that barely affect anyone.
+    max_distance_bps: float = 2.0
+
+    # "Large" = the size jump is >= this multiple of the median size added near
+    # the touch... (no account history exists, so the baseline is market-wide)
+    size_multiple: float = 10.0
+
+    # ...and worth at least this many dollars. Filters out jumps that are big
+    # relative to a tiny median but economically trivial.
+    min_notional_usd: float = 100_000.0
+
+    # The added size counts as "gone" once the level falls back by this share
+    # of the jump.
+    removal_fraction: float = 0.9
+
+    # Flag if it disappears within this many seconds...
+    max_lifetime_s: float = 5.0
+
+    # ...with at most this share of it traded at that price in the meantime.
+    max_filled_fraction: float = 0.10
+
+    # How long to follow each large add before calling it "still resting".
+    follow_s: float = 60.0
+
+
 # Evaluation: an alert matches a ground-truth incident if it is for the same
 # pattern, shares an account, and its time window overlaps the incident window
 # padded by this many seconds on each side.
@@ -138,3 +172,4 @@ SPOOFING_SWEEP = [1.5, 2, 3, 4, 5, 6, 8, 10, 12, 15]
 WASH = WashTradeConfig()
 SPOOFING = SpoofingConfig()
 LAYERING = LayeringConfig()
+REAL_DATA = RealDataConfig()
