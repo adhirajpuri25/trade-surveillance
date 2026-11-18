@@ -1,0 +1,4 @@
+pattern,incidents,alerts,true_pos_alerts,false_pos_alerts,hit_other_pattern,incidents_found,missed,precision,recall,f1
+wash_trade,18,19,18,1,0,18,0,0.947,1.0,0.973
+spoofing,30,37,28,9,0,28,2,0.757,0.933,0.836
+layering,24,22,22,0,0,22,2,1.0,0.917,0.957
