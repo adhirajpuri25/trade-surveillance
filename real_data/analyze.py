@@ -305,7 +305,8 @@ def main() -> None:
         OUT_DIR / "large_adds.csv", index=False, lineterminator="\n")
     flagged.drop(columns=["t", "t_end", "flagged"], errors="ignore").round(digits).to_csv(
         OUT_DIR / "flagged_orders.csv", index=False, lineterminator="\n")
-    (OUT_DIR / "summary.json").write_text(json.dumps(summary, indent=2, default=float) + "\n")
+    (OUT_DIR / "summary.json").write_text(json.dumps(summary, indent=2, default=float) + "\n",
+                                          newline="\n")
     if len(flagged):
         # Chart the largest flagged order that sat behind the touch and lived
         # long enough (>= 1 s) to be visible on a chart.
